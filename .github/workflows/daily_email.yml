@@ -31,4 +31,5 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           TO_EMAIL: ${{ secrets.TO_EMAIL }}
+          FROM_NAME: ${{ secrets.FROM_NAME }}
         run: python main.py
