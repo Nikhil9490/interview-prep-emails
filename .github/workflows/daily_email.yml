@@ -1,23 +1,16 @@
 name: Daily Interview Email
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
   schedule:
-    - cron: "0 * * * *"   # hourly (UTC). We gate to 10AM New York inside the job.
-
-permissions:
-  contents: write
-
-concurrency:
-  group: daily-interview-email
-  cancel-in-progress: false
+    - cron: "0 * * * *"
 
 jobs:
   send:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           persist-credentials: true
@@ -27,22 +20,22 @@ jobs:
         run: |
           HOUR=$(TZ=America/New_York date +%H)
           if [ "$HOUR" != "10" ]; then
-            echo "Not 10AM in New York (hour=$HOUR). Exiting."
+            echo "Not 10AM New York (hour=$HOUR). Exiting."
             exit 0
           fi
-          echo "It's 10AM in New York. Continuing."
+          echo "It's 10AM New York. Continuing."
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install deps
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run sender
+      - name: Run
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
@@ -57,20 +50,17 @@ jobs:
         run: |
           python main.py
 
-      - name: Commit updated state.json (and logs if present)
+      - name: Commit state.json back to repo
         run: |
-          # Pull latest (avoid push conflicts if something changed)
-          git pull --rebase
-
-          # If nothing changed, exit cleanly
-          if git diff --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git add state.json logs/ || true
-          git commit -m "Update state after daily send"
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Update state after send"
           git push
