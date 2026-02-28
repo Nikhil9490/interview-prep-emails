@@ -8,22 +8,17 @@ on:
 jobs:
   send:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          persist-credentials: true
-          fetch-depth: 0
 
-      - name: Gate: only run at 10AM America/New_York
+      - name: Gate 10AM NY
         run: |
           HOUR=$(TZ=America/New_York date +%H)
           if [ "$HOUR" != "10" ]; then
-            echo "Not 10AM New York (hour=$HOUR). Exiting."
+            echo "Not 10AM NY (hour=$HOUR)."
             exit 0
           fi
-          echo "It's 10AM New York. Continuing."
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -44,23 +39,5 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           TO_EMAIL: ${{ secrets.TO_EMAIL }}
-          FROM_NAME: ${{ secrets.FROM_NAME }}
-          DRY_RUN: "0"
-          FORCE_SEND: "0"
         run: |
           python main.py
-
-      - name: Commit state.json back to repo
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git add state.json logs/ || true
-
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-
-          git commit -m "Update state after send"
-          git push
