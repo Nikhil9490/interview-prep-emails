@@ -1,6 +1,6 @@
 # interview-prep-emails
 
-📬 # Daily AI Interview Prep Emailer
+📬 Daily AI Interview Prep Emailer
 
 A fully automated system that sends me one structured AI/ML interview lesson every morning at 10:00 AM.
 
