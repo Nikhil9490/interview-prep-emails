@@ -2,7 +2,7 @@ name: Daily Interview Email
 
 on:
   schedule:
-    - cron: '0 15 * * *'   # 10:00 AM EST = 15:00 UTC (during EST)
+    - cron: '0 14 * * *'   # 10:00 AM EST = 15:00 UTC (during EST)
   workflow_dispatch:
 
 jobs:
