@@ -5,6 +5,7 @@ import smtplib
 import ssl
 from io import BytesIO
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
@@ -17,11 +18,14 @@ from openai import OpenAI
 STATE_FILE = "state.json"
 TOPICS_FILE = "topics.docx"
 LOG_DIR = "logs"
+NY_TZ = ZoneInfo("America/New_York")
+SEND_HOUR_NY = 10
 
 # ---------- Utilities ----------
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
 
 def ensure_dir(path: str) -> None:
     os.makedirs(path, exist_ok=True)
@@ -48,7 +52,7 @@ def load_day_plans_from_docx(path: str) -> list[str]:
         raise ValueError("topics.docx is empty. Add one day-plan per paragraph.")
     return plans
 
-def already_sent_today(state: dict, now: datetime) -> bool:
+def already_sent_today(state: dict, now_ny: datetime) -> bool:
     if os.environ.get("FORCE_SEND", "0").strip() == "1":
         return False
     last = state.get("last_sent_utc")
@@ -58,7 +62,16 @@ def already_sent_today(state: dict, now: datetime) -> bool:
         last_dt = datetime.fromisoformat(last)
     except Exception:
         return False
-    return last_dt.date() == now.date()
+    if last_dt.tzinfo is None:
+        # Backward-compatible handling for any legacy naive value.
+        last_dt = last_dt.replace(tzinfo=timezone.utc)
+    return last_dt.astimezone(NY_TZ).date() == now_ny.date()
+
+def should_send_at_this_time(now_ny: datetime) -> bool:
+    if os.environ.get("FORCE_SEND", "0").strip() == "1":
+        return True
+    # Hard gate: only send during configured NY hour (default 10AM).
+    return now_ny.hour == SEND_HOUR_NY
 
 def write_log(now: datetime, subject: str, text_body: str) -> None:
     ensure_dir(LOG_DIR)
@@ -494,6 +507,7 @@ def generate_json(prompt: str) -> dict:
 def main():
     load_dotenv()
     now = utc_now()
+    now_ny = now.astimezone(NY_TZ)
 
     required = ["OPENAI_API_KEY", "SMTP_HOST", "SMTP_USER", "SMTP_PASS", "TO_EMAIL"]
     for k in required:
@@ -503,8 +517,12 @@ def main():
     state = load_state()
     plans = load_day_plans_from_docx(TOPICS_FILE)
 
-    if already_sent_today(state, now):
-        print("Already sent today (UTC). Exiting.")
+    if not should_send_at_this_time(now_ny):
+        print(f"Not send window yet. NY time is {now_ny.strftime('%Y-%m-%d %H:%M:%S %Z')} (needs {SEND_HOUR_NY:02d}:00 hour). Exiting.")
+        return
+
+    if already_sent_today(state, now_ny):
+        print("Already sent today (America/New_York). Exiting.")
         return
 
     day_index = int(state.get("day_index", 0))
